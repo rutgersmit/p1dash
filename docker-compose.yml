@@ -1,6 +1,7 @@
 services:
   p1dash:
-    build: .
+    image: ghcr.io/rutgrrr/p1dash:main   # pre-built image from GitHub Actions
+    # build: .                            # uncomment to build locally instead
     ports:
       - "${PORT:-3012}:${PORT:-3000}"
     environment:
