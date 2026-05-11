@@ -431,8 +431,8 @@ body {
 
 .graph-fs-overlay {
   position: absolute;
-  top: 12px;
-  right: 16px;
+  bottom: 12px;
+  left: 16px;
   display: flex;
   align-items: baseline;
   gap: 4px;
