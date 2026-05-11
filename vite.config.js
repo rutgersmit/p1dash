@@ -5,6 +5,7 @@ const backendPort = process.env.PORT || '3000';
 
 export default defineConfig({
   root: 'src/client',
+  publicDir: '../../public',
   build: {
     outDir: '../../dist',
     emptyOutDir: true,
