@@ -98,7 +98,7 @@ export default function App() {
       {/* Footer */}
       <footer className="footer">
         <a href="https://buymeacoffee.com/rutgrrr" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-          made with 🍺 by rutgrrr
+          made with ☕ by rutgrrr
         </a>
         <span style={{ color: 'var(--border)', margin: '0 8px' }}>·</span>
         <a href="https://github.com/rutgersmit/p1dash" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
