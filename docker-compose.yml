@@ -1,6 +1,6 @@
 services:
   p1dash:
-    image: ghcr.io/rutgrrr/p1dash:main   # pre-built image from GitHub Actions
+    image: ghcr.io/rutgersmit/p1dash:main   # pre-built image from GitHub Actions
     # build: .                            # uncomment to build locally instead
     ports:
       - "${PORT:-3012}:${PORT:-3000}"
