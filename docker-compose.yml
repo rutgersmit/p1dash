@@ -1,0 +1,10 @@
+services:
+  p1dash:
+    build: .
+    ports:
+      - "${PORT:-3012}:${PORT:-3000}"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/config
+    restart: unless-stopped

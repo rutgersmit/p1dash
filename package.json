@@ -1,0 +1,25 @@
+{
+  "name": "p1dash",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Real-time HomeWizard P1 Meter dashboard",
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,yellow \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node --watch src/server/index.js",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production node src/server/index.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.3.4"
+  }
+}
