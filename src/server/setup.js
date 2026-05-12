@@ -111,5 +111,19 @@ export function setupRouter(onConfigSaved) {
     }
   });
 
+  // POST /api/setup/save — save IP + token directly (manual entry)
+  // Body: { ip: string, token: string }
+  router.post('/save', (req, res) => {
+    const { ip, token } = req.body;
+    if (!ip || !token) return res.status(400).json({ error: 'ip and token required' });
+    try {
+      saveRuntimeConfig(ip, token);
+      onConfigSaved(ip, token);
+      res.json({ status: 'ok' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   return router;
 }

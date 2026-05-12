@@ -25,13 +25,34 @@ async function apiPost(path, body) {
   }
 }
 
-function StepDots({ current }) {
+function StepDots({ current, total = 3 }) {
   return (
     <div className="wizard-steps">
-      {[0, 1, 2].map(i => (
+      {Array.from({ length: total }, (_, i) => (
         <div key={i} className={`wizard-step-dot ${i === current ? 'active' : i < current ? 'done' : ''}`} />
       ))}
     </div>
+  );
+}
+
+// ─── Shared success screen ────────────────────────────────────────────────────
+function StepDone({ onDone }) {
+  return (
+    <>
+      <div className="wizard-success-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </div>
+      <div>
+        <div className="wizard-step-label">All done</div>
+        <div className="wizard-title">Connected!</div>
+      </div>
+      <div className="wizard-body">
+        P1 Dash is now connected to your meter. Your energy data will appear on the dashboard.
+      </div>
+      <button className="wizard-btn" onClick={onDone}>Go to dashboard</button>
+    </>
   );
 }
 
@@ -46,8 +67,6 @@ function StepConnect({ onNext }) {
     setLoading(true);
     try {
       const result = await apiPost('/api/setup/pair', { ip });
-      // 403 from meter → awaiting_button (expected first response)
-      // 200 from meter → already done (button was still active from a previous attempt)
       onNext({ ip, done: result.status === 'ok' });
     } catch (err) {
       setError(err.message);
@@ -87,13 +106,19 @@ function StepConnect({ onNext }) {
   );
 }
 
-// ─── Step 2: press button + auto-poll ────────────────────────────────────────
-function StepButton({ ip, onDone }) {
+// ─── Step 2: press button OR enter token manually ─────────────────────────────
+function StepPair({ ip, onDone }) {
+  const [mode, setMode]     = useState('button'); // 'button' | 'manual'
   const [status, setStatus] = useState('polling'); // polling | done | error
-  const [error, setError] = useState('');
+  const [error, setError]   = useState('');
+  const [token, setToken]   = useState('');
+  const [saving, setSaving] = useState(false);
   const intervalRef = useRef(null);
 
+  // Auto-poll when in button mode
   useEffect(() => {
+    if (mode !== 'button' || status !== 'polling') return;
+
     intervalRef.current = setInterval(async () => {
       try {
         const result = await apiPost('/api/setup/pair', { ip });
@@ -101,7 +126,6 @@ function StepButton({ ip, onDone }) {
           clearInterval(intervalRef.current);
           setStatus('done');
         }
-        // 'awaiting_button' → keep polling, resets the meter's 30s timer
       } catch (err) {
         clearInterval(intervalRef.current);
         setError(err.message);
@@ -110,27 +134,37 @@ function StepButton({ ip, onDone }) {
     }, 3000);
 
     return () => clearInterval(intervalRef.current);
-  }, [ip]);
+  }, [ip, mode, status]);
 
-  if (status === 'done') {
-    return (
-      <>
-        <div className="wizard-success-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-        <div>
-          <div className="wizard-step-label">All done</div>
-          <div className="wizard-title">Connected!</div>
-        </div>
-        <div className="wizard-body">
-          P1 Dash is now connected to your meter. Your energy data will appear on the dashboard.
-        </div>
-        <button className="wizard-btn" onClick={onDone}>Go to dashboard</button>
-      </>
-    );
+  // Stop polling when switching to manual mode
+  function switchToManual() {
+    clearInterval(intervalRef.current);
+    setMode('manual');
+    setStatus('idle');
+    setError('');
   }
+
+  function switchToButton() {
+    setMode('button');
+    setStatus('polling');
+    setError('');
+  }
+
+  async function handleSaveToken() {
+    if (!token.trim()) return;
+    setError('');
+    setSaving(true);
+    try {
+      await apiPost('/api/setup/save', { ip, token: token.trim() });
+      setStatus('done');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (status === 'done') return <StepDone onDone={onDone} />;
 
   if (status === 'error') {
     return (
@@ -140,13 +174,47 @@ function StepButton({ ip, onDone }) {
           <div className="wizard-title">Something went wrong</div>
         </div>
         <div className="wizard-error">{error}</div>
-        <button className="wizard-btn" onClick={() => { setStatus('polling'); setError(''); }}>
-          Try again
+        <button className="wizard-btn" onClick={switchToButton}>Try again</button>
+      </>
+    );
+  }
+
+  if (mode === 'manual') {
+    return (
+      <>
+        <div>
+          <div className="wizard-step-label">Step 2 of 2</div>
+          <div className="wizard-title">Enter your token</div>
+        </div>
+        <div className="wizard-body">
+          Paste the token that was previously issued to P1 Dash by your meter.
+          You can find it in the HomeWizard Energy app under <strong>Meter settings → Manage access</strong>.
+        </div>
+        <div className="wizard-input-group">
+          <label htmlFor="token">Token</label>
+          <input
+            id="token"
+            className="wizard-input"
+            type="text"
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && token.trim() && handleSaveToken()}
+            autoFocus
+          />
+        </div>
+        {error && <div className="wizard-error">{error}</div>}
+        <button className="wizard-btn" onClick={handleSaveToken} disabled={!token.trim() || saving}>
+          {saving ? 'Saving…' : 'Save token'}
+        </button>
+        <button className="wizard-btn wizard-btn-secondary" onClick={switchToButton} disabled={saving}>
+          Pair by pressing the button instead
         </button>
       </>
     );
   }
 
+  // Default: button-press mode
   return (
     <>
       <div>
@@ -165,6 +233,9 @@ function StepButton({ ip, onDone }) {
       <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', textAlign: 'center' }}>
         Waiting for button press…
       </div>
+      <button className="wizard-btn wizard-btn-secondary" onClick={switchToManual}>
+        Enter token manually
+      </button>
     </>
   );
 }
@@ -188,17 +259,11 @@ export function SetupWizard({ onComplete }) {
         {step === 0 && (
           <StepConnect onNext={({ ip, done }) => {
             setCtx({ ip });
-            if (done) {
-              // Button was still active — skip straight to success
-              setStep(2);
-            } else {
-              setStep(1);
-            }
+            setStep(done ? 2 : 1);
           }} />
         )}
-        {step === 1 && (
-          <StepButton ip={ctx.ip} onDone={onComplete} />
-        )}
+        {step === 1 && <StepPair ip={ctx.ip} onDone={onComplete} />}
+        {step === 2 && <StepDone onDone={onComplete} />}
       </div>
     </div>
   );
