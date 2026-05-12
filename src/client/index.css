@@ -466,11 +466,34 @@ body {
   height: 180px;
 }
 
+.graph-canvas-wrap--hour {
+  height: 150px;
+}
+
 .graph-canvas-wrap canvas {
   display: block;
   width: 100%;
   height: 100%;
   border-radius: var(--radius-sm);
+}
+
+/* Mini hour-graph strip — only shown in fullscreen */
+.graph-mini-wrap {
+  display: none;
+  height: 56px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.graph-mini-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.graph-card:fullscreen .graph-mini-wrap {
+  display: block;
 }
 
 /* ─── Setup wizard ───────────────────────────────────────────────────────── */

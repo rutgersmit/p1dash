@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const HISTORY_SECONDS = 60;
-const MAX_POINTS = HISTORY_SECONDS * 2; // two samples per second max
+const HISTORY_SECONDS  = 60;
+const HISTORY_HOUR_MS  = 60 * 60 * 1000;
+const MAX_POINTS       = HISTORY_SECONDS * 2;
+const MAX_HOUR_POINTS  = 120; // one point/min × 60 min, with headroom
 
 function wsUrl() {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -11,23 +13,46 @@ function wsUrl() {
 export function useP1Data() {
   const [measurement, setMeasurement] = useState(null);
   const [connectionState, setConnectionState] = useState('disconnected');
-  // history: array of { t: number (ms), v: number (W) }
-  const historyRef = useRef([]);
-  const [history, setHistory] = useState([]);
 
-  const wsRef = useRef(null);
+  const historyRef     = useRef([]);
+  const historyHourRef = useRef([]);
+  const [history,     setHistory]     = useState([]);
+  const [historyHour, setHistoryHour] = useState([]);
+
+  const minuteBufferRef      = useRef([]);
+  const minuteBucketStartRef = useRef(null);
+
+  const wsRef          = useRef(null);
   const reconnectTimer = useRef(null);
   const reconnectDelay = useRef(1000);
-  const unmounted = useRef(false);
+  const unmounted      = useRef(false);
 
   const addHistoryPoint = useCallback((value) => {
-    // Always use browser receive-time so the graph window (Date.now()) stays in sync
     const t = Date.now();
+
+    // 60-second history: every incoming point
     historyRef.current = [
       ...historyRef.current.filter(p => p.t >= t - HISTORY_SECONDS * 1000),
       { t, v: value },
     ].slice(-MAX_POINTS);
     setHistory([...historyRef.current]);
+
+    // Hour history: one averaged point per minute
+    if (minuteBucketStartRef.current === null) minuteBucketStartRef.current = t;
+    minuteBufferRef.current.push(value);
+
+    if (t - minuteBucketStartRef.current >= 60_000) {
+      const buf = minuteBufferRef.current;
+      const avg = buf.reduce((s, v) => s + v, 0) / buf.length;
+      minuteBufferRef.current      = [];
+      minuteBucketStartRef.current = t;
+
+      historyHourRef.current = [
+        ...historyHourRef.current.filter(p => p.t >= t - HISTORY_HOUR_MS),
+        { t, v: avg },
+      ].slice(-MAX_HOUR_POINTS);
+      setHistoryHour([...historyHourRef.current]);
+    }
   }, []);
 
   const connect = useCallback(() => {
@@ -41,9 +66,7 @@ export function useP1Data() {
     const ws = new WebSocket(wsUrl());
     wsRef.current = ws;
 
-    ws.onopen = () => {
-      reconnectDelay.current = 1000;
-    };
+    ws.onopen = () => { reconnectDelay.current = 1000; };
 
     ws.onmessage = (event) => {
       let msg;
@@ -53,11 +76,8 @@ export function useP1Data() {
         setConnectionState(msg.data?.state ?? 'disconnected');
       } else if (msg.type === 'measurement' && msg.data) {
         setMeasurement(msg.data);
-        if (msg.data.power_w != null) {
-          addHistoryPoint(msg.data.power_w);
-        }
+        if (msg.data.power_w != null) addHistoryPoint(msg.data.power_w);
       }
-      // meter_error — ignore silently (no-telegram-received etc.)
     };
 
     ws.onclose = () => {
@@ -69,9 +89,7 @@ export function useP1Data() {
       }, reconnectDelay.current);
     };
 
-    ws.onerror = () => {
-      // close fires after error — reconnect handled there
-    };
+    ws.onerror = () => {};
   }, [addHistoryPoint]);
 
   useEffect(() => {
@@ -87,5 +105,5 @@ export function useP1Data() {
     };
   }, [connect]);
 
-  return { measurement, history, connectionState };
+  return { measurement, history, historyHour, connectionState };
 }

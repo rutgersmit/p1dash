@@ -4,6 +4,7 @@ import { PowerDisplay } from './components/PowerDisplay.jsx';
 import { PhaseCards } from './components/PhaseCards.jsx';
 import { EnergyCards } from './components/EnergyCards.jsx';
 import { PowerGraph } from './components/PowerGraph.jsx';
+import { HourGraph } from './components/HourGraph.jsx';
 import { StatusPill, ThemeToggle } from './components/StatusBar.jsx';
 import { SetupWizard } from './components/SetupWizard.jsx';
 
@@ -53,7 +54,7 @@ export default function App() {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
   };
 
-  const { measurement: m, history, connectionState } = useP1Data();
+  const { measurement: m, history, historyHour, connectionState } = useP1Data();
 
   const updatedAt = fmtTimestamp(m?.timestamp);
 
@@ -80,7 +81,7 @@ export default function App() {
       </header>
 
       {/* Live graph — top of page */}
-      <PowerGraph history={history} powerW={m?.power_w ?? null} />
+      <PowerGraph history={history} historyHour={historyHour} powerW={m?.power_w ?? null} />
 
       {/* Current power — compact, below the graph */}
       <PowerDisplay powerW={m?.power_w ?? null} />
@@ -94,6 +95,9 @@ export default function App() {
 
       {/* Energy totals */}
       <EnergyCards m={m} />
+
+      {/* Hour graph */}
+      <HourGraph history={historyHour} />
 
       {/* Footer */}
       <footer className="footer">

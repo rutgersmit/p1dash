@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-const HISTORY_MS = 60_000;
-const GRID_LINES = 4;
+const HISTORY_MS      = 60_000;
+const HISTORY_HOUR_MS = 60 * 60 * 1000;
+const GRID_LINES      = 4;
 
 // Resolve CSS variable at render time
 function cssVar(el, name) {
@@ -37,12 +38,16 @@ function formatPower(w) {
   return { value: Math.round(w).toString(), unit: 'W' };
 }
 
-export function PowerGraph({ history, powerW }) {
-  const canvasRef  = useRef(null);
-  const cardRef    = useRef(null);
-  const rafRef     = useRef(null);
-  const historyRef = useRef(history);
-  historyRef.current = history;
+export function PowerGraph({ history, historyHour, powerW }) {
+  const canvasRef      = useRef(null);
+  const miniCanvasRef  = useRef(null);
+  const cardRef        = useRef(null);
+  const rafRef         = useRef(null);
+  const miniRafRef     = useRef(null);
+  const historyRef     = useRef(history);
+  const historyHourRef = useRef(historyHour);
+  historyRef.current     = history;
+  historyHourRef.current = historyHour;
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -283,6 +288,163 @@ export function PowerGraph({ history, powerW }) {
     };
   }, []); // run once — data flows in via historyRef
 
+  // ── Mini hour-graph canvas (visible in fullscreen) ─────────────────────
+  useEffect(() => {
+    const canvas = miniCanvasRef.current;
+    if (!canvas) return;
+
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr  = window.devicePixelRatio || 1;
+      canvas.width  = rect.width  * dpr;
+      canvas.height = rect.height * dpr;
+    }
+    resize();
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas.parentElement);
+
+    function drawMini() {
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const W   = canvas.width;
+      const H   = canvas.height;
+      const now = Date.now();
+
+      const bgColor     = cssVar(canvas, '--bg-card') || '#1c2128';
+      const borderColor = cssVar(canvas, '--border')  || '#30363d';
+      const text3       = cssVar(canvas, '--text-3')  || '#6e7681';
+      const importColor = cssVar(canvas, '--import')  || '#f97316';
+      const exportColor = cssVar(canvas, '--export')  || '#22c55e';
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, W, H);
+
+      const PAD_TOP    = 4  * dpr;
+      const PAD_BOTTOM = 14 * dpr;
+      const PAD_LEFT   = 4  * dpr;
+      const PAD_RIGHT  = 4  * dpr;
+
+      const plotW = W - PAD_LEFT - PAD_RIGHT;
+      const plotH = H - PAD_TOP  - PAD_BOTTOM;
+
+      const data        = historyHourRef.current;
+      const windowStart = now - HISTORY_HOUR_MS;
+
+      const visibleVals = data.filter(p => p.t >= windowStart).map(p => p.v);
+      const absMax      = visibleVals.length ? Math.max(...visibleVals.map(Math.abs), 0) : 500;
+      const yMax        = niceMax(absMax);
+
+      const xOf   = (t) => PAD_LEFT + ((t - windowStart) / HISTORY_HOUR_MS) * plotW;
+      const yOf   = (v) => PAD_TOP  + (1 - (v + yMax) / (2 * yMax)) * plotH;
+      const zeroY = yOf(0);
+
+      // Zero line
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth   = 0.5 * dpr;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(PAD_LEFT, zeroY);
+      ctx.lineTo(PAD_LEFT + plotW, zeroY);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // X-axis labels: -60m, -30m, now
+      ctx.font         = `${8 * dpr}px -apple-system, system-ui, sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle    = text3;
+      for (const m of [0, 30, 60]) {
+        const t     = now - (60 - m) * 60 * 1000;
+        const x     = xOf(t);
+        const label = m === 60 ? 'now' : `-${60 - m}m`;
+        ctx.fillText(label, x, PAD_TOP + plotH + 2 * dpr);
+      }
+
+      if (data.length < 2) { miniRafRef.current = requestAnimationFrame(drawMini); return; }
+
+      const visible = data.filter(p => p.t >= windowStart - 120_000);
+      if (visible.length < 1) { miniRafRef.current = requestAnimationFrame(drawMini); return; }
+
+      const last   = visible[visible.length - 1];
+      const points = [...visible, { t: now, v: last.v }];
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(PAD_LEFT, PAD_TOP, plotW, plotH);
+      ctx.clip();
+
+      // Area fill: import
+      {
+        const grad = ctx.createLinearGradient(0, PAD_TOP, 0, zeroY);
+        grad.addColorStop(0, 'rgba(249,115,22,0.5)');
+        grad.addColorStop(1, 'rgba(249,115,22,0.05)');
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(PAD_LEFT, PAD_TOP, plotW, zeroY - PAD_TOP);
+        ctx.clip();
+        ctx.beginPath();
+        ctx.moveTo(xOf(points[0].t), zeroY);
+        ctx.lineTo(xOf(points[0].t), yOf(points[0].v));
+        traceCurve(ctx, points, xOf, yOf);
+        ctx.lineTo(xOf(points[points.length - 1].t), zeroY);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Area fill: export
+      {
+        const grad = ctx.createLinearGradient(0, zeroY, 0, PAD_TOP + plotH);
+        grad.addColorStop(0, 'rgba(34,197,94,0.05)');
+        grad.addColorStop(1, 'rgba(34,197,94,0.5)');
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(PAD_LEFT, zeroY, plotW, PAD_TOP + plotH - zeroY);
+        ctx.clip();
+        ctx.beginPath();
+        ctx.moveTo(xOf(points[0].t), zeroY);
+        ctx.lineTo(xOf(points[0].t), yOf(points[0].v));
+        traceCurve(ctx, points, xOf, yOf);
+        ctx.lineTo(xOf(points[points.length - 1].t), zeroY);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      const drawLine = (color, clipY, clipH) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(PAD_LEFT, clipY, plotW, clipH);
+        ctx.clip();
+        ctx.beginPath();
+        ctx.moveTo(xOf(points[0].t), yOf(points[0].v));
+        traceCurve(ctx, points, xOf, yOf);
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = 1.5 * dpr;
+        ctx.lineJoin    = 'round';
+        ctx.stroke();
+        ctx.restore();
+      };
+      drawLine(importColor, PAD_TOP, zeroY - PAD_TOP);
+      drawLine(exportColor, zeroY,   PAD_TOP + plotH - zeroY);
+
+      ctx.restore();
+
+      miniRafRef.current = requestAnimationFrame(drawMini);
+    }
+
+    miniRafRef.current = requestAnimationFrame(drawMini);
+
+    return () => {
+      if (miniRafRef.current) cancelAnimationFrame(miniRafRef.current);
+      ro.disconnect();
+    };
+  }, []);
+
   return (
     <div className="card graph-card" ref={cardRef}>
       <div className="graph-header">
@@ -315,6 +477,9 @@ export function PowerGraph({ history, powerW }) {
             </div>
           );
         })()}
+      </div>
+      <div className="graph-mini-wrap">
+        <canvas ref={miniCanvasRef} />
       </div>
     </div>
   );
