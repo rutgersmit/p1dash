@@ -241,7 +241,7 @@ function StepPair({ ip, onDone }) {
 }
 
 // ─── Wizard shell ─────────────────────────────────────────────────────────────
-export function SetupWizard({ onComplete }) {
+export function SetupWizard({ onComplete, onCancel }) {
   const [step, setStep] = useState(0);
   const [ctx, setCtx]   = useState({});
 
@@ -254,6 +254,23 @@ export function SetupWizard({ onComplete }) {
             <path d="M16 6l-8 14h6v6l8-14h-6V6z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
           </svg>
           <StepDots current={step} />
+          {onCancel ? (
+            <button
+              onClick={onCancel}
+              aria-label="Cancel"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-3)', padding: '4px', borderRadius: '6px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M2 2l12 12M14 2L2 14" />
+              </svg>
+            </button>
+          ) : (
+            <div style={{ width: 24 }} />
+          )}
         </div>
 
         {step === 0 && (

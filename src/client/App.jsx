@@ -20,6 +20,7 @@ function fmtTimestamp(ts) {
 
 export default function App() {
   const [configured, setConfigured] = useState(null); // null = loading
+  const [canCancel,  setCanCancel]  = useState(false);
 
   useEffect(() => {
     fetch('/api/setup/status')
@@ -60,7 +61,9 @@ export default function App() {
 
   if (configured === null) return null; // brief loading flash
   if (!configured) {
-    return <SetupWizard onComplete={() => setConfigured(true)} />;
+    const handleComplete = () => { setConfigured(true); setCanCancel(false); };
+    const handleCancel   = canCancel ? () => { setConfigured(true); setCanCancel(false); } : null;
+    return <SetupWizard onComplete={handleComplete} onCancel={handleCancel} />;
   }
 
   return (
@@ -79,7 +82,7 @@ export default function App() {
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button
             className="theme-btn"
-            onClick={() => setConfigured(false)}
+            onClick={() => { setConfigured(false); setCanCancel(true); }}
             title="Reconfigure meter"
             aria-label="Reconfigure meter"
           >
