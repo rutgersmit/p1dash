@@ -48,6 +48,8 @@ let p1ws = null;
 let connectionState = 'disconnected';
 let reconnectTimer = null;
 let reconnectDelay = 1000;
+let pingInterval = null;
+let pongReceived = true;
 
 const clients = new Set();
 
@@ -71,6 +73,28 @@ function scheduleReconnect() {
   }, reconnectDelay);
 }
 
+function stopHeartbeat() {
+  if (pingInterval) {
+    clearInterval(pingInterval);
+    pingInterval = null;
+  }
+}
+
+function startHeartbeat(ws) {
+  stopHeartbeat();
+  pongReceived = true;
+  pingInterval = setInterval(() => {
+    if (!pongReceived) {
+      console.warn('P1 meter heartbeat timeout — reconnecting');
+      stopHeartbeat();
+      ws.terminate();
+      return;
+    }
+    pongReceived = false;
+    try { ws.ping(); } catch { /* ignore, close event will fire */ }
+  }, 30_000);
+}
+
 function connectToP1() {
   if (!P1_IP || !P1_TOKEN) {
     console.log('No P1 meter config — waiting for pairing wizard');
@@ -78,6 +102,7 @@ function connectToP1() {
     return;
   }
 
+  stopHeartbeat();
   if (p1ws) {
     p1ws.removeAllListeners();
     p1ws.terminate();
@@ -92,6 +117,8 @@ function connectToP1() {
 
   ws.on('open', () => console.log('Socket open — waiting for authorization_requested'));
 
+  ws.on('pong', () => { pongReceived = true; });
+
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); }
@@ -105,6 +132,7 @@ function connectToP1() {
         reconnectDelay = 1000;
         setConnectionState('connected');
         ws.send(JSON.stringify({ type: 'subscribe', data: 'measurement' }));
+        startHeartbeat(ws);
         break;
       case 'update':
       case 'measurement':
@@ -117,6 +145,7 @@ function connectToP1() {
   });
 
   ws.on('close', () => {
+    stopHeartbeat();
     setConnectionState('disconnected');
     scheduleReconnect();
   });
