@@ -125,6 +125,10 @@ export default function App() {
           </svg>
           GitHub
         </a>
+        <span style={{ color: 'var(--border)', margin: '0 8px' }}>·</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+          {__BUILD_SHA__} · {__BUILD_DATE__}
+        </span>
       </footer>
     </div>
   );
