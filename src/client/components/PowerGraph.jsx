@@ -49,20 +49,63 @@ export function PowerGraph({ history, historyHour, powerW }) {
   historyRef.current     = history;
   historyHourRef.current = historyHour;
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
+  const isFullscreen = nativeFullscreen || pseudoFullscreen;
 
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onChange = () => {
+      setNativeFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+    };
+
+    onChange();
     document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
   }, []);
 
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      cardRef.current?.requestFullscreen();
-    } else {
-      document.exitFullscreen();
+  useEffect(() => {
+    if (!pseudoFullscreen) return;
+
+    document.body.classList.add('graph-fullscreen-lock');
+    return () => document.body.classList.remove('graph-fullscreen-lock');
+  }, [pseudoFullscreen]);
+
+  async function toggleFullscreen() {
+    if (nativeFullscreen) {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        }
+      } catch {
+        setNativeFullscreen(false);
+      }
+      return;
     }
+
+    if (pseudoFullscreen) {
+      setPseudoFullscreen(false);
+      return;
+    }
+
+    const card = cardRef.current;
+    const requestFullscreen = card?.requestFullscreen || card?.webkitRequestFullscreen;
+
+    if (requestFullscreen) {
+      try {
+        await requestFullscreen.call(card);
+        return;
+      } catch {
+        // Fall back to an in-app fullscreen layout.
+      }
+    }
+
+    setPseudoFullscreen(true);
   }
 
   useEffect(() => {
@@ -446,7 +489,7 @@ export function PowerGraph({ history, historyHour, powerW }) {
   }, []);
 
   return (
-    <div className="card graph-card" ref={cardRef}>
+    <div className={`card graph-card${pseudoFullscreen ? ' graph-card--fullscreen' : ''}`} ref={cardRef}>
       <div className="graph-header">
         <span className="graph-title">Power — last 60 s</span>
         <span className="graph-legend">

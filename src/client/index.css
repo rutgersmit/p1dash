@@ -416,7 +416,8 @@ body {
   vertical-align: middle;
 }
 
-.graph-card:fullscreen {
+.graph-card:fullscreen,
+.graph-card.graph-card--fullscreen {
   border-radius: 0;
   display: flex;
   flex-direction: column;
@@ -424,7 +425,16 @@ body {
   padding: 20px;
 }
 
-.graph-card:fullscreen .graph-canvas-wrap {
+.graph-card.graph-card--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  background: var(--bg-page);
+}
+
+.graph-card:fullscreen .graph-canvas-wrap,
+.graph-card.graph-card--fullscreen .graph-canvas-wrap {
   flex: 1;
   height: auto;
 }
@@ -492,8 +502,13 @@ body {
   border-radius: var(--radius-sm);
 }
 
-.graph-card:fullscreen .graph-mini-wrap {
+.graph-card:fullscreen .graph-mini-wrap,
+.graph-card.graph-card--fullscreen .graph-mini-wrap {
   display: block;
+}
+
+body.graph-fullscreen-lock {
+  overflow: hidden;
 }
 
 /* ─── Setup wizard ───────────────────────────────────────────────────────── */

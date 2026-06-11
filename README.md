@@ -7,6 +7,7 @@ Real-time HomeWizard P1 Meter dashboard. Connects to your meter over its local A
 - Built-in pairing wizard — enter your meter's IP, press the button, done
 - Live power reading with animated value transitions
 - Scrolling 60-second power graph — orange for import, green for export
+- Graph fullscreen button with native fullscreen when supported, plus an in-app fallback for browsers like iPhone Safari pinned apps
 - Hourly graph — averaged per minute over the last hour
 - Per-phase breakdown (L1 / L2 / L3) when available
 - Import & export energy totals with T1/T2 split
@@ -51,7 +52,7 @@ docker run -d \
 
 GitHub Actions builds and pushes automatically on every push to `main`:
 
-```
+```bash
 ghcr.io/rutgersmit/p1dash:main
 ghcr.io/rutgersmit/p1dash:sha-<short sha>
 ```
