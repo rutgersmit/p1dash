@@ -511,6 +511,10 @@ body.graph-fullscreen-lock {
   overflow: hidden;
 }
 
+body.graph-fullscreen-lock .app > :not(.graph-card) {
+  display: none;
+}
+
 /* ─── Setup wizard ───────────────────────────────────────────────────────── */
 .wizard-wrap {
   min-height: 100dvh;
